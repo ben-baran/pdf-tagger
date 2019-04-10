@@ -1,0 +1,261 @@
+{% extends 'base.html' %}
+
+{% block header %}
+    <a href="" class="brand-logo truncate">Explanation Labeling</a>
+    <ul class="right hide-on-med-and-down">
+        <li><a class="waves-effect waves-light tagger-sidenav btn" data-target="slide-out">Other Papers</a></li>
+        <li><a href="/logout" class="waves-effect waves-light btn">Log Out</a></li>
+    </ul>
+{% endblock %}
+
+
+{% block content %}
+<div class="button-box red lighten-2">
+    <a class="waves-effect waves-light btn">Mark as done (ENTER)</a>
+    <a class="waves-effect waves-light btn">Show all bounding boxes (SPACE)</a>
+</div>
+
+<ul id="slide-out" class="sidenav">
+    <li><div class="user-view">
+        <div class="cyan background">
+            <img src="https://upload.wikimedia.org/wikipedia/en/d/da/Hearst_Mining_Interior.JPG">
+        </div>
+        <a><span class="white-text name">{{ g.fullname }}</span></a>
+        <a><span class="white-text email">{{ g.email }}</span></a>
+    </div></li>
+    <li><a class="waves-effect" onclick="requestRender()"><i class="material-icons">add_circle</i>Render Additional Paper</a></li>
+    <li><div class="divider"></div></li>
+</div>
+</ul>
+
+<div class="container" id="image-container">
+    <ul class="collapsible">
+    <li>
+      <div class="collapsible-header"><i class="material-icons">question_answer</i>Instructions</div>
+      <div class="collapsible-body"><span>Lorem ipsum dolor sit amet.</span></div>
+    </li>
+    </li>
+  </ul>
+</div>
+
+{% endblock %}
+
+{% block end %}
+<style>
+    .button-box {
+        position: fixed;
+        z-index: 2;
+        right: 0px;
+        bottom: 0px;
+        width: 100%;
+        background-color: teal;
+        padding: 8px;
+        padding-left: 5%;
+        padding-right: 5%;
+    }
+    
+    .document-container {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .document-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: 100%;
+    }
+</style>
+    
+<script>
+    
+var socket = io.connect('http://' + document.domain + ':' + location.port);
+    
+function requestRender () {
+    let sidebar = document.getElementById('slide-out');
+    
+    let cur_time = new Date().getTime();
+    let list_elem = document.createElement("li");
+    list_elem.dataset.timestamp = cur_time;
+    let a_elem = document.createElement("a");
+    a_elem.className = "truncate";
+    let font_elem = document.createElement("font");
+    font_elem.size = -1;
+    font_elem.textContent = "Sending request...";
+    let progress_elem = document.createElement("div");
+    progress_elem.className = "progress";
+    let inner_prog_elem = document.createElement("div");
+    inner_prog_elem.className = "indeterminate";
+    
+    progress_elem.appendChild(inner_prog_elem);
+    a_elem.appendChild(font_elem);
+    list_elem.appendChild(a_elem);
+    list_elem.appendChild(progress_elem);
+    sidebar.appendChild(list_elem);
+    
+    socket.emit('request new paper', {
+        email: '{{ g.email }}',
+        timestamp: cur_time
+    });
+}
+    
+socket.on("render started", function (msg) {
+    let list_elem = document.querySelector(`li[data-timestamp='${msg.timestamp}']`);
+    list_elem.dataset.ssid = msg.ssid;
+    list_elem.dataset.title = msg.title;
+    list_elem.querySelector("font").textContent = "Rendering...";
+});
+    
+socket.on("render finished", function (msg) {
+    let list_elem = document.querySelector(`li[data-ssid='${msg.ssid}']`);
+    list_elem.querySelector("font").textContent = list_elem.dataset.title;
+    list_elem.querySelector(".progress").remove();
+    list_elem.querySelector("a").href = msg.ssid;
+});
+
+var bbs;
+    
+$.getJSON('../edit_list', function(data) {
+    let sidebar = document.getElementById('slide-out');
+    for (let group of data.papers) {
+        let list_elem = document.createElement("li");
+        let a_elem = document.createElement("a");
+        a_elem.className = "truncate";
+        a_elem.href = group.ssid;
+        let font_elem = document.createElement("font");
+        font_elem.size = -1;
+        font_elem.textContent = group.title;
+
+        a_elem.appendChild(font_elem);
+        list_elem.appendChild(a_elem);
+        sidebar.appendChild(list_elem);
+    }
+});
+    
+$('.tagger-sidenav').click(function() {
+    $('.sidenav').sidenav('open');
+});
+    
+var img_container = document.getElementById("image-container");
+var img_i;
+for (img_i = 1; img_i <= {{ g.num_images }}; img_i++) {
+    var div_block = document.createElement("div");
+    div_block.className = "document-container";
+    
+    var img_block = document.createElement("img");
+    img_block.src = "../tagimgs/{{ g.ssid }}/" + img_i;
+    img_block.className = "responsive-img";
+    img_block.dataset.taggingImagePage = img_i;
+    
+    var internal_div = document.createElement("div");
+    var svg_block = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    internal_div.className = "document-overlay";
+    internal_div.appendChild(svg_block);
+ 
+    
+    div_block.appendChild(img_block);
+    div_block.appendChild(internal_div);
+    img_container.appendChild(div_block);
+}
+
+function redraw_overlay () {
+    
+    svgs = d3.selectAll('.document-overlay').select('svg');
+    // svgs.attr('width', svgs.parentNode.width);
+    
+    svgs = d3.selectAll('svg');
+    dimensions = new Array({{ g.num_images}} + 1);
+    svgs.each(function(d, i) {
+        let image = this.parentNode.parentNode.childNodes[0];
+        let width = image.offsetWidth;
+        let height = image.offsetHeight
+        this.setAttribute("width", width);
+        this.setAttribute("height", height);
+        dimensions[i + 1] = [width, height];
+    });
+    let paragraph_bbs = bbs.paragraphs;
+    let sentence_bbs = bbs.sentences;
+    let pbbs_page_groups = [...Array({{ g.num_images }})].map(e => []);
+    let sbbs_page_groups = [...Array({{ g.num_images }})].map(e => []);
+    for (let p_bb of paragraph_bbs) {
+        let dimension = dimensions[p_bb.page];
+        
+        // We adjust the paragraph bounding boxes to be a little taller so that
+        // there aren't gaps
+        p_bb.x_adj = p_bb.x * dimension[0];
+        p_bb.y_adj = (1 - p_bb.y - (p_bb.height * 1.1)) * dimension[1];
+        p_bb.width_adj = p_bb.width * dimension[0];
+        p_bb.height_adj = 1.1 * p_bb.height * dimension[1];
+        pbbs_page_groups[p_bb.page - 1].push(p_bb);
+    }
+    for (let s_bb of sentence_bbs) {
+        let dimension = dimensions[s_bb.page];
+        s_bb.x_adj = s_bb.x * dimension[0];
+        s_bb.y_adj = (1 - s_bb.y - (s_bb.height * 1.1)) * dimension[1];
+        s_bb.width_adj = s_bb.width * dimension[0];
+        s_bb.height_adj = 1.1 * s_bb.height * dimension[1];
+        sbbs_page_groups[s_bb.page - 1].push(s_bb);
+    }
+    
+    var p_rects = svgs.data(pbbs_page_groups)
+                    .selectAll("rect").data(function(d) {return d;});
+    
+    // console.log(p_rects);
+    
+    var created_p_rects = p_rects.enter().append("rect");
+    
+    created_p_rects.style("opacity", 0.0)
+        .attr("x", function (d) { return d.x_adj; })
+        .attr("y", function (d) { return d.y_adj; })
+        .attr("width", function (d) { return d.width_adj; })
+        .attr("height", function (d) { return d.height_adj; })
+        .classed("paragraph-bb", true);
+        ;
+    
+    
+    var s_rects = svgs.data(sbbs_page_groups)
+                    .selectAll("rect:not(.paragraph-bb)").data(function(d) {return d;});
+    
+    
+    var created_s_rects = s_rects.enter().append("rect");
+    created_s_rects.style("opacity", 0.0)
+        .attr("x", function (d) { return d.x_adj; })
+        .attr("y", function (d) { return d.y_adj; })
+        .attr("width", function (d) { return d.width_adj; })
+        .attr("height", function (d) { return d.height_adj; })
+        .attr("fill", "green")
+        .on("mouseover", sentenceMouseOver)
+        .on("mouseout", sentenceMouseOut)
+        ;
+    
+    function sentenceMouseOver (d, i) {
+        created_s_rects.filter(function(d_inner) { return d_inner.sentence_id == d.sentence_id; })
+            .transition().duration(.3).style("opacity", 0.2);
+        console.log(created_p_rects.filter(function(d_inner) {
+            console.log(d_inner);
+            console.log(d.parent_id + " =? " + d_inner.paragraph_id);
+            return d_inner.paragraph_id == d.parent_id;
+        }));
+        created_p_rects.filter(function(d_inner) { return d_inner.paragraph_id == d.parent_id; })
+            .transition().duration(.3).style("opacity", 0.12);
+    }
+
+    function sentenceMouseOut (d, i) {
+        created_s_rects.filter(function(d_inner) { return d_inner.sentence_id == d.sentence_id; })
+            .transition().style("opacity", 0.0);
+        created_p_rects.filter(function(d_inner) { return d_inner.paragraph_id == d.parent_id; })
+            .transition().style("opacity", 0.0);
+    }
+}
+    
+$.getJSON('../tagbbs/{{ g.ssid }}', function(data) {
+    bbs = data;
+    redraw_overlay();
+});
+window.addEventListener("resize", redraw_overlay);
+    
+</script>
+{% endblock %}

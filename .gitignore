@@ -1,0 +1,5 @@
+.ipynb_checkpoints/
+.mysql.cfg
+__pycache__/
+*.swp
+
