@@ -10,15 +10,15 @@
 
 
 {% block content %}
-<div class="button-box red lighten-2">
+<!--<div class="button-box red lighten-2">
     <a class="waves-effect waves-light btn">Mark as done (ENTER)</a>
     <a class="waves-effect waves-light btn" id="is-explained-button">Is being explained (←)</a>
     <a class="waves-effect waves-light btn" id="is-not-explained-button">Isn't being explained (→)</a>
     <a class="waves-effect waves-light btn" id="undo-label-button">Undo (Back)</a>
-</div>
+</div>-->
 
 <div class="side-stats">
-    <p id="candidate-counter">Candidate 1/16</p>
+    <p id="candidate-counter"></p>
 </div>
 
 <ul id="slide-out" class="sidenav">
@@ -63,7 +63,7 @@
         position: fixed;
         z-index: 2;
         right: 0%;
-        bottom: 10%;
+        bottom: 0%;
         padding: 8px;
         padding-left: 5%;
         padding-right: 5%;
@@ -133,7 +133,8 @@ socket.on("render finished", function (msg) {
 
 var bbs, explanation_candidates;
 var current_candidate = 0;
-var explanation_labels = [];
+var explanation_labels = {};
+var token_map;
     
 $.getJSON('../edit_list', function(data) {
     let sidebar = document.getElementById('slide-out');
@@ -259,13 +260,26 @@ function redraw_overlay () {
     var t_rects = svgs.data(tbbs_page_groups)
                     .selectAll("rect:not(.paragraph-bb):not(.sentence-bb)").data(function(d) {return d;});
     var created_t_rects = t_rects.enter().append("rect");
-    created_t_rects.style("opacity", 0.3)
+    created_t_rects.style("opacity", function(d) {
+                if (d.token_id == explanation_candidates[current_candidate]) {
+                    return 0.4;
+                }
+                return 0.15;
+            })
         .attr("x", function (d) { return d.x_adj; })
         .attr("y", function (d) { return d.y_adj; })
         .attr("width", function (d) { return d.width_adj; })
         .attr("height", function (d) { return d.height_adj; })
-        .attr("fill", "blue")
+        .attr("fill", function(d) {
+                if (!(d.token_id in explanation_labels)) {
+                    return "blue";
+                } else if (explanation_labels[d.token_id]) {
+                    return "green";
+                }
+                return "red";
+            })
         .classed("target-bb", true)
+        .attr("id", function(d) { return "token-" + d.token_id; })
         ;
     
     function sentenceMouseOver (d, i) {
@@ -289,25 +303,22 @@ function redraw_overlay () {
 }
     
 function scroll_and_highlight_candidate () {
-    candidate = explanation_candidates[current_candidate];
-    let cur_tok;
-    for (let token of bbs.tokens) {
-        if (token.token_id == candidate) {
-            cur_tok = token;
-            break;
-        }
-    }
-    
-    bbs.target_bbs = [cur_tok];
-    redraw_overlay();
-    let offset = $('.target-bb').offset().top - $(window).height() / 2;
+    $('.target-bb').css('opacity', 0.1);
+    let token_elem = $('#token-' + explanation_candidates[current_candidate]);
+    token_elem.css('opacity', 0.4);
+    let offset = token_elem.offset().top - $(window).height() / 2;
+    $('html, body').stop(true, false);
     $('html, body').animate({scrollTop: offset}, 150);
+}
+    
+function update_candidate_counter () {
+    $("#candidate-counter").text("Candidate " + (current_candidate + 1) + "/" + explanation_candidates.length);
 }
     
 function increment_candidate () {
     if (explanation_candidates.length > current_candidate + 1) {
         current_candidate++;
-        $("#candidate-counter").text("Candidate " + (current_candidate + 1) + "/" + explanation_candidates.length);
+        update_candidate_counter();
         scroll_and_highlight_candidate();
     }
     
@@ -316,30 +327,51 @@ function increment_candidate () {
 function decrement_candidate () {
     if (current_candidate > 0) {
         current_candidate--;
-        $("#candidate-counter").text("Candidate " + (current_candidate + 1) + "/" + explanation_candidates.length);
+        update_candidate_counter();
         scroll_and_highlight_candidate();
     }
+}
+    
+function set_candidate_true () {
+    explanation_labels[explanation_candidates[current_candidate]] = true;
+    let token_elem = $('#token-' + explanation_candidates[current_candidate]);
+    token_elem.css('fill', 'green');
+}
+    
+function set_candidate_false () {
+    explanation_labels[explanation_candidates[current_candidate]] = false;
+    let token_elem = $('#token-' + explanation_candidates[current_candidate]);
+    token_elem.css('fill', 'red');
 }
     
 $.getJSON('../tagdata/{{ g.ssid }}', function(data) {
     console.log(data);
     bbs = data.bbs;
-    bbs.target_bbs = [];
     explanation_candidates = data.explanation_candidates;
     explanation_labels = new Array(explanation_candidates.length);
+    token_map = {};
+    for (let token of bbs.tokens) {
+        token_map[token.token_id] = token 
+    }
+    bbs.target_bbs = explanation_candidates.map(function(ec){
+        return token_map[ec];
+    }); 
+    
+    redraw_overlay();
     scroll_and_highlight_candidate();
+    update_candidate_counter();
 });
 window.addEventListener("resize", redraw_overlay);
     
 window.addEventListener('keydown', (e) => {
-    if (!e.repeat && e.key == "ArrowLeft") {
-        explanation_labels[current_candidate] = true;
-        increment_candidate();
-    } else if (!e.repeat && e.key == "ArrowRight") {
-        explanation_labels[current_candidate] = false;
-        increment_candidate();
-    } else if (!e.repeat && e.key == "Backspace") {
+    if (e.key == "ArrowLeft") {
         decrement_candidate();
+    } else if (e.key == "ArrowRight") {
+        increment_candidate();
+    } else if (e.code == "KeyZ") {
+        set_candidate_true();
+    } else if (e.code == "KeyX") {
+        set_candidate_false();
     }
 })
     
