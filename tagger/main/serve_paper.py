@@ -60,33 +60,35 @@ GET_ALL_PARAGRAPH_BBS = (
     "WHERE paragraph_id IN (SELECT paragraph_id FROM paragraphs WHERE ssid=%(ssid)s)"
 )
 
-GET_PARAGRAPH_SENTENCE_BOUNDS = (
-    "SELECT sentence_start, sentence_end FROM paragraphs "
-    "WHERE paragraph_id=%(paragraph_id)s"
+GET_ALL_SENTENCE_BOUNDS = (
+    "SELECT paragraph_id, sentence_start, sentence_end FROM paragraphs "
+    "WHERE ssid=%(ssid)s"
 )
 
-GET_SENTENCES_FOR_BOUNDS = (
-    "SELECT sentence_id, n, page, x, y, width, height FROM sentence_bb "
-    "WHERE sentence_id IN "
-        "(SELECT sentence_id FROM sentences WHERE "
-        "ssid=%(ssid)s AND sentence_n >= %(sentence_start)s AND sentence_n <= %(sentence_end)s)"
+GET_ALL_SENTENCE_BBS = (
+    "SELECT sbb.sentence_id, sbb.n, sbb.page, "
+            "sbb.x, sbb.y, sbb.width, sbb.height, sent.sentence_n "
+    "FROM sentence_bb AS sbb INNER JOIN sentences AS sent "
+    "ON sbb.sentence_id=sent.sentence_id "
+    "WHERE sent.ssid=%(ssid)s"
+)
+
+GET_ALL_TOKEN_BOUNDS = (
+    "SELECT sentence_id, token_start, token_end FROM sentences "
+    "WHERE ssid=%(ssid)s"
+)
+
+GET_ALL_TOKEN_BBS = (
+    "SELECT tbb.token_id, tbb.n, tbb.page, "
+            "tbb.x, tbb.y, tbb.width, tbb.height, tok.token_n "
+    "FROM token_bb AS tbb INNER JOIN tokens AS tok "
+    "ON tbb.token_id=tok.token_id "
+    "WHERE tok.ssid=%(ssid)s"
 )
 
 INSERT_TAGGING_ENTRY = (
     "INSERT INTO tagging (user_email, ssid, last_edited) "
     "VALUES (%(user_email)s, %(ssid)s, %(last_edited)s)"
-)
-
-GET_SENTENCE_TOKEN_BOUNDS = (
-    "SELECT token_start, token_end FROM sentences "
-    "WHERE sentence_id=%(sentence_id)s"
-)
-
-GET_TOKENS_FOR_BOUNDS = (
-    "SELECT token_id, n, page, x, y, width, height FROM token_bb "
-    "WHERE token_id IN "
-        "(SELECT token_id FROM tokens WHERE "
-        "ssid=%(ssid)s AND token_n >= %(token_start)s AND token_n <= %(token_end)s)"
 )
 
 
@@ -115,10 +117,8 @@ def render_and_generate_json(paper_id, email, conn):
             pages[n] = [width, height]
         
         paragraphs = []
-        paragraph_ids = set()
         cursor.execute(GET_ALL_PARAGRAPH_BBS, {'ssid': paper_id})
         for paragraph_id, n, page, x, y, width, height in cursor:
-            paragraph_ids.add(paragraph_id)
             paragraphs.append({
                 'paragraph_id': paragraph_id,
                 'n': n,
@@ -130,57 +130,52 @@ def render_and_generate_json(paper_id, email, conn):
             })
             
         sentences = []
-        sentence_ids = set()
-        for paragraph_id in paragraph_ids:
-            cursor.execute(GET_PARAGRAPH_SENTENCE_BOUNDS, {
-                'paragraph_id': paragraph_id
+        sentence_parents = dict()
+        cursor.execute(GET_ALL_SENTENCE_BOUNDS, {
+            'ssid': paper_id
+        })
+        for paragraph_id, sentence_start, sentence_end in cursor:
+            for sentence_i in range(sentence_start, sentence_end + 1):
+                sentence_parents[sentence_i] = paragraph_id
+        cursor.execute(GET_ALL_SENTENCE_BBS, {
+            'ssid': paper_id
+        })
+        for sentence_id, n, page, x, y, width, height, inner_n in cursor:
+            sentences.append({
+                'sentence_id': sentence_id,
+                'parent_id': sentence_parents[inner_n],
+                'n': n,
+                'page': page,
+                'x': x / pages[page][0],
+                'y': y / pages[page][1],
+                'width': width / pages[page][0],
+                'height': height / pages[page][1]
             })
-            sentence_start, sentence_end = cursor.fetchall()[0]
-            cursor.execute(GET_SENTENCES_FOR_BOUNDS, {
-                'sentence_start': sentence_start,
-                'sentence_end': sentence_end,
-                'ssid': paper_id
-            })
-            for sentence_id, n, page, x, y, width, height in cursor:
-                sentence_ids.add(sentence_id)
-                sentences.append({
-                    'sentence_id': sentence_id,
-                    'parent_id': paragraph_id,
-                    'n': n,
-                    'page': page,
-                    'x': x / pages[page][0],
-                    'y': y / pages[page][1],
-                    'width': width / pages[page][0],
-                    'height': height / pages[page][1]
-                })
-                
-        print("about to start token processing...")
-                
+        
         tokens = []
         token_ids = set()
-        for sentence_id in sentence_ids:
-            cursor.execute(GET_SENTENCE_TOKEN_BOUNDS, {
-                'sentence_id': sentence_id
+        token_parents = dict()
+        cursor.execute(GET_ALL_TOKEN_BOUNDS, {
+            'ssid': paper_id
+        })
+        for sentence_id, token_start, token_end in cursor:
+            for token_i in range(token_start, token_end + 1):
+                token_parents[token_i] = sentence_id
+        cursor.execute(GET_ALL_TOKEN_BBS, {
+            'ssid': paper_id
+        })
+        for token_id, n, page, x, y, width, height, inner_n in cursor:
+            token_ids.add(token_id)
+            tokens.append({
+                'token_id': token_id,
+                'parent_id': token_parents[inner_n],
+                'n': n,
+                'page': page,
+                'x': x / pages[page][0],
+                'y': y / pages[page][1],
+                'width': width / pages[page][0],
+                'height': height / pages[page][1]
             })
-            tok_start, tok_end = cursor.fetchall()[0]
-            cursor.execute(GET_TOKENS_FOR_BOUNDS, {
-                'token_start': tok_start,
-                'token_end': tok_end,
-                'ssid': paper_id
-            })
-            for token_id, n, page, x, y, width, height in cursor:
-                token_ids.add(token_id)
-                tokens.append({
-                    'token_id': token_id,
-                    'parent_id': sentence_id,
-                    'n': n,
-                    'page': page,
-                    'x': x / pages[page][0],
-                    'y': y / pages[page][1],
-                    'width': width / pages[page][0],
-                    'height': height / pages[page][1]
-                })
-        print("finished token processing.")
             
         all_bbs = {
             'paragraphs': paragraphs,
