@@ -12,7 +12,13 @@
 {% block content %}
 <div class="button-box red lighten-2">
     <a class="waves-effect waves-light btn">Mark as done (ENTER)</a>
-    <a class="waves-effect waves-light btn">Show all bounding boxes (SPACE)</a>
+    <a class="waves-effect waves-light btn" id="is-explained-button">Is being explained (←)</a>
+    <a class="waves-effect waves-light btn" id="is-not-explained-button">Isn't being explained (→)</a>
+    <a class="waves-effect waves-light btn" id="undo-label-button">Undo (Back)</a>
+</div>
+
+<div class="side-stats">
+    <p id="candidate-counter">Candidate 1/16</p>
 </div>
 
 <ul id="slide-out" class="sidenav">
@@ -48,7 +54,16 @@
         right: 0px;
         bottom: 0px;
         width: 100%;
-        background-color: teal;
+        padding: 8px;
+        padding-left: 5%;
+        padding-right: 5%;
+    }
+    
+    .side-stats {
+        position: fixed;
+        z-index: 2;
+        right: 0%;
+        bottom: 10%;
         padding: 8px;
         padding-left: 5%;
         padding-right: 5%;
@@ -116,7 +131,9 @@ socket.on("render finished", function (msg) {
     list_elem.querySelector("a").href = msg.ssid;
 });
 
-var bbs;
+var bbs, explanation_candidates;
+var current_candidate = 0;
+var explanation_labels = [];
     
 $.getJSON('../edit_list', function(data) {
     let sidebar = document.getElementById('slide-out');
@@ -162,7 +179,9 @@ for (img_i = 1; img_i <= {{ g.num_images }}; img_i++) {
 }
 
 function redraw_overlay () {
-    
+    $('.paragraph-bb').remove();
+    $('.sentence-bb').remove();
+    $('.target-bb').remove();
     svgs = d3.selectAll('.document-overlay').select('svg');
     // svgs.attr('width', svgs.parentNode.width);
     
@@ -178,8 +197,10 @@ function redraw_overlay () {
     });
     let paragraph_bbs = bbs.paragraphs;
     let sentence_bbs = bbs.sentences;
+    let target_bbs = bbs.target_bbs;
     let pbbs_page_groups = [...Array({{ g.num_images }})].map(e => []);
     let sbbs_page_groups = [...Array({{ g.num_images }})].map(e => []);
+    let tbbs_page_groups = [...Array({{ g.num_images }})].map(e => []);
     for (let p_bb of paragraph_bbs) {
         let dimension = dimensions[p_bb.page];
         
@@ -200,13 +221,18 @@ function redraw_overlay () {
         sbbs_page_groups[s_bb.page - 1].push(s_bb);
     }
     
+    for (let t_bb of target_bbs) {
+        let dimension = dimensions[t_bb.page];
+        t_bb.x_adj = t_bb.x * dimension[0];
+        t_bb.y_adj = (1 - t_bb.y - (t_bb.height * 1.1)) * dimension[1];
+        t_bb.width_adj = t_bb.width * dimension[0];
+        t_bb.height_adj = 1.1 * t_bb.height * dimension[1];
+        tbbs_page_groups[t_bb.page - 1].push(t_bb);
+    }
+    
     var p_rects = svgs.data(pbbs_page_groups)
                     .selectAll("rect").data(function(d) {return d;});
-    
-    // console.log(p_rects);
-    
     var created_p_rects = p_rects.enter().append("rect");
-    
     created_p_rects.style("opacity", 0.0)
         .attr("x", function (d) { return d.x_adj; })
         .attr("y", function (d) { return d.y_adj; })
@@ -218,8 +244,6 @@ function redraw_overlay () {
     
     var s_rects = svgs.data(sbbs_page_groups)
                     .selectAll("rect:not(.paragraph-bb)").data(function(d) {return d;});
-    
-    
     var created_s_rects = s_rects.enter().append("rect");
     created_s_rects.style("opacity", 0.0)
         .attr("x", function (d) { return d.x_adj; })
@@ -229,16 +253,29 @@ function redraw_overlay () {
         .attr("fill", "green")
         .on("mouseover", sentenceMouseOver)
         .on("mouseout", sentenceMouseOut)
+        .classed("sentence-bb", true)
+        ;
+    
+    var t_rects = svgs.data(tbbs_page_groups)
+                    .selectAll("rect:not(.paragraph-bb):not(.sentence-bb)").data(function(d) {return d;});
+    var created_t_rects = t_rects.enter().append("rect");
+    created_t_rects.style("opacity", 0.3)
+        .attr("x", function (d) { return d.x_adj; })
+        .attr("y", function (d) { return d.y_adj; })
+        .attr("width", function (d) { return d.width_adj; })
+        .attr("height", function (d) { return d.height_adj; })
+        .attr("fill", "blue")
+        .classed("target-bb", true)
         ;
     
     function sentenceMouseOver (d, i) {
         created_s_rects.filter(function(d_inner) { return d_inner.sentence_id == d.sentence_id; })
             .transition().duration(.3).style("opacity", 0.2);
-        console.log(created_p_rects.filter(function(d_inner) {
+        /*console.log(created_p_rects.filter(function(d_inner) {
             console.log(d_inner);
             console.log(d.parent_id + " =? " + d_inner.paragraph_id);
             return d_inner.paragraph_id == d.parent_id;
-        }));
+        }));*/
         created_p_rects.filter(function(d_inner) { return d_inner.paragraph_id == d.parent_id; })
             .transition().duration(.3).style("opacity", 0.12);
     }
@@ -251,11 +288,60 @@ function redraw_overlay () {
     }
 }
     
-$.getJSON('../tagbbs/{{ g.ssid }}', function(data) {
-    bbs = data;
+function scroll_and_highlight_candidate () {
+    candidate = explanation_candidates[current_candidate];
+    let cur_tok;
+    for (let token of bbs.tokens) {
+        if (token.token_id == candidate) {
+            cur_tok = token;
+            break;
+        }
+    }
+    
+    bbs.target_bbs = [cur_tok];
     redraw_overlay();
+    let offset = $('.target-bb').offset().top - $(window).height() / 2;
+    $('html, body').animate({scrollTop: offset}, 150);
+}
+    
+function increment_candidate () {
+    if (explanation_candidates.length > current_candidate + 1) {
+        current_candidate++;
+        $("#candidate-counter").text("Candidate " + (current_candidate + 1) + "/" + explanation_candidates.length);
+        scroll_and_highlight_candidate();
+    }
+    
+}
+    
+function decrement_candidate () {
+    if (current_candidate > 0) {
+        current_candidate--;
+        $("#candidate-counter").text("Candidate " + (current_candidate + 1) + "/" + explanation_candidates.length);
+        scroll_and_highlight_candidate();
+    }
+}
+    
+$.getJSON('../tagdata/{{ g.ssid }}', function(data) {
+    console.log(data);
+    bbs = data.bbs;
+    bbs.target_bbs = [];
+    explanation_candidates = data.explanation_candidates;
+    explanation_labels = new Array(explanation_candidates.length);
+    scroll_and_highlight_candidate();
 });
 window.addEventListener("resize", redraw_overlay);
+    
+window.addEventListener('keydown', (e) => {
+    if (!e.repeat && e.key == "ArrowLeft") {
+        explanation_labels[current_candidate] = true;
+        increment_candidate();
+    } else if (!e.repeat && e.key == "ArrowRight") {
+        explanation_labels[current_candidate] = false;
+        increment_candidate();
+    } else if (!e.repeat && e.key == "Backspace") {
+        decrement_candidate();
+    }
+})
     
 </script>
 {% endblock %}

@@ -63,12 +63,12 @@ def tag_paper(paper_id):
 @main.route('/tagimgs/<string:ssid>/<int:n>')
 @login_required
 def get_rendered_image(ssid, n):
-    return send_from_directory('render', os.path.join(ssid, 'img%d.png' % n))
+    return send_from_directory('processed', os.path.join(ssid, 'img%d.png' % n))
 
-@main.route('/tagbbs/<string:ssid>')
+@main.route('/tagdata/<string:ssid>')
 @login_required
-def get_bb_json(ssid):
-    return send_from_directory('render', os.path.join(ssid, 'bb.json'))
+def get_pdf_data(ssid):
+    return send_from_directory('processed', os.path.join(ssid, 'data.json'))
 
 @main.route('/edit_list')
 @login_required

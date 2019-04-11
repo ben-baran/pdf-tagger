@@ -3,6 +3,7 @@ import subprocess
 import glob
 import json
 import time
+import predictor.random_noun
 
 GET_LAST_EDITED_PAPER = (
     "SELECT ssid FROM tagging WHERE "
@@ -76,11 +77,23 @@ INSERT_TAGGING_ENTRY = (
     "VALUES (%(user_email)s, %(ssid)s, %(last_edited)s)"
 )
 
+GET_SENTENCE_TOKEN_BOUNDS = (
+    "SELECT token_start, token_end FROM sentences "
+    "WHERE sentence_id=%(sentence_id)s"
+)
+
+GET_TOKENS_FOR_BOUNDS = (
+    "SELECT token_id, n, page, x, y, width, height FROM token_bb "
+    "WHERE token_id IN "
+        "(SELECT token_id FROM tokens WHERE "
+        "ssid=%(ssid)s AND token_n >= %(token_start)s AND token_n <= %(token_end)s)"
+)
+
 
 def render_and_generate_json(paper_id, email, conn):
-    render_dir = os.path.join('tagger', 'render', paper_id)
+    render_dir = os.path.join('tagger', 'processed', paper_id)
     render_prefix = os.path.join(render_dir, 'img')
-    json_filepath = os.path.join(render_dir, 'bb.json')
+    json_filepath = os.path.join(render_dir, 'data.json')
     
     if not os.path.isdir(render_dir): # already created
         cursor = conn.cursor()
@@ -117,6 +130,7 @@ def render_and_generate_json(paper_id, email, conn):
             })
             
         sentences = []
+        sentence_ids = set()
         for paragraph_id in paragraph_ids:
             cursor.execute(GET_PARAGRAPH_SENTENCE_BOUNDS, {
                 'paragraph_id': paragraph_id
@@ -128,6 +142,7 @@ def render_and_generate_json(paper_id, email, conn):
                 'ssid': paper_id
             })
             for sentence_id, n, page, x, y, width, height in cursor:
+                sentence_ids.add(sentence_id)
                 sentences.append({
                     'sentence_id': sentence_id,
                     'parent_id': paragraph_id,
@@ -138,13 +153,48 @@ def render_and_generate_json(paper_id, email, conn):
                     'width': width / pages[page][0],
                     'height': height / pages[page][1]
                 })
+                
+        print("about to start token processing...")
+                
+        tokens = []
+        token_ids = set()
+        for sentence_id in sentence_ids:
+            cursor.execute(GET_SENTENCE_TOKEN_BOUNDS, {
+                'sentence_id': sentence_id
+            })
+            tok_start, tok_end = cursor.fetchall()[0]
+            cursor.execute(GET_TOKENS_FOR_BOUNDS, {
+                'token_start': tok_start,
+                'token_end': tok_end,
+                'ssid': paper_id
+            })
+            for token_id, n, page, x, y, width, height in cursor:
+                token_ids.add(token_id)
+                tokens.append({
+                    'token_id': token_id,
+                    'parent_id': sentence_id,
+                    'n': n,
+                    'page': page,
+                    'x': x / pages[page][0],
+                    'y': y / pages[page][1],
+                    'width': width / pages[page][0],
+                    'height': height / pages[page][1]
+                })
+        print("finished token processing.")
             
         all_bbs = {
             'paragraphs': paragraphs,
-            'sentences': sentences
+            'sentences': sentences,
+            'tokens': tokens
+        }
+        
+        # NOTE(ben): dummy data for now. Later replace this for online learning.
+        all_data = {
+            'bbs': all_bbs,
+            'explanation_candidates': predictor.random_noun.get_random_noun_list(cursor, token_ids)
         }
         with open(json_filepath, 'w') as json_file:
-            json.dump(all_bbs, json_file)
+            json.dump(all_data, json_file)
         
         # lock the paper into the current user
         cursor.execute(INSERT_TAGGING_ENTRY, {
