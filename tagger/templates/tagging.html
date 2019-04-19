@@ -225,15 +225,17 @@ function redraw_overlay () {
     
     for (let i = 0; i < target_bbs.length; i++) {
         for (let j = 0; j < target_bbs[i].length; j++) {
-            for (let t_bb of target_bbs[i][j]) {
-                let dimension = dimensions[t_bb.page];
-                t_bb.x_adj = t_bb.x * dimension[0];
-                t_bb.y_adj = (1 - t_bb.y - (t_bb.height * 1.1)) * dimension[1];
-                t_bb.width_adj = t_bb.width * dimension[0];
-                t_bb.height_adj = 1.1 * t_bb.height * dimension[1];
-                t_bb.target_group = i;
-                t_bb.within_group_index = j;
-                tbbs_page_groups[t_bb.page - 1].push(t_bb);
+            for (let target of target_bbs[i][j]) {
+                for (let t_bb of target) {
+                    let dimension = dimensions[t_bb.page];
+                    t_bb.x_adj = t_bb.x * dimension[0];
+                    t_bb.y_adj = (1 - t_bb.y - (t_bb.height * 1.1)) * dimension[1];
+                    t_bb.width_adj = t_bb.width * dimension[0];
+                    t_bb.height_adj = 1.1 * t_bb.height * dimension[1];
+                    t_bb.target_group = i;
+                    t_bb.within_group_index = j;
+                    tbbs_page_groups[t_bb.page - 1].push(t_bb);
+                }
             }
         }
     }
@@ -281,15 +283,15 @@ function redraw_overlay () {
         .attr("width", function (d) { return d.width_adj; })
         .attr("height", function (d) { return d.height_adj; })
         .attr("fill", function(d) {
-                if (explanation_labels[d.target_group][d.within_group_index] === false) {
+                if (explanation_labels[d.target_group][d.within_group_index] == 0) {
                     return "red";
-                } else if (explanation_labels[d.target_group][d.within_group_index] === true) {
+                } else if (explanation_labels[d.target_group][d.within_group_index]) {
                     return "green";
                 }
                 return "blue";
             })
         .classed("target-bb", true)
-        .attr("id", function(d) { return "token-" + d.token_id; })
+        .attr("data-token-id", function(d) { return d.token_id; })
         ;
     
     function sentenceMouseOver (d, i) {
@@ -302,6 +304,7 @@ function redraw_overlay () {
         }));*/
         created_p_rects.filter(function(d_inner) { return d_inner.paragraph_id == d.parent_id; })
             .transition().duration(.3).style("opacity", 0.12);
+        // last_selected_sentence = d.sentence_id;
     }
 
     function sentenceMouseOut (d, i) {
@@ -318,22 +321,22 @@ function scroll_and_highlight_candidate () {
     for (let j = 0; j < candidates.length; j++) {
         for (let k = 0; k < candidates[j].length; k++) {
             let token_id = candidates[j][k];
-            let token_elem = $('#token-' + token_id);
+            let token_elems = $('*[data-token-id="' + token_id + '"]');
             if (j == current_candidate_j) {
-                token_elem.css('opacity', 0.4);
+                token_elems.css('opacity', 0.4);
                 if (k == 0) {
-                    let offset = token_elem.offset().top - $(window).height() / 2;
+                    let offset = token_elems.first().offset().top - $(window).height() / 2;
                     $('html, body').stop(true, false);
                     $('html, body').animate({scrollTop: offset}, 150);
                 }
             } else {
-                token_elem.css('opacity', 0.15);
+                token_elems.css('opacity', 0.15);
             }
         }
     }
 }
     
-function update_candidate_counters () {
+function update_info_text () {
     $("#phrase-counter").text("Phrase " + (current_phrase_i + 1) + "/" + explanation_candidates.length);
     $("#candidate-counter").text("Candidate " + (current_candidate_j + 1) + "/" + explanation_candidates[current_phrase_i].length);
 }
@@ -347,7 +350,7 @@ function increment_candidate () {
     } else {
         return;
     }
-    update_candidate_counters();
+    update_info_text();
     scroll_and_highlight_candidate();
 }
     
@@ -360,20 +363,40 @@ function decrement_candidate () {
     } else {
         return;
     }
-    update_candidate_counters();
+    update_info_text();
     scroll_and_highlight_candidate();
 }
     
-function set_candidate_true () {
-    explanation_labels[current_phrase_i][current_candidate_j] = true;
-    let token_elem = $('#token-' + explanation_candidates[current_phrase_i][current_candidate_j]);
-    token_elem.css('fill', 'green');
+function set_candidate_score (score) {
+    explanation_labels[current_phrase_i][current_candidate_j] = score;
+    for (let candidate of explanation_candidates[current_phrase_i][current_candidate_j]) {
+        $('*[data-token-id="' + candidate + '"]').css('fill', 'green');
+    }
+    
+    // Need to make any "invalid" labels valid again
+    for (let j = 0; j < explanation_candidates[current_phrase_i].length; j++) {
+        if (explanation_labels[current_phrase_i][j] == 0) {
+            explanation_labels[current_phrase_i][j] = null;
+            for (let candidate of explanation_candidates[current_phrase_i][j]) {
+                $('*[data-token-id="' + candidate + '"]').css('fill', 'blue');
+            }
+        }
+    }
 }
     
-function set_candidate_false () {
-    explanation_labels[current_phrase_i][current_candidate_j] = false;
-    let token_elem = $('#token-' + explanation_candidates[current_phrase_i][current_candidate_j]);
-    token_elem.css('fill', 'red');
+function set_candidate_invalid () {
+    for (let j = 0; j < explanation_labels[current_phrase_i].length; j++) {
+        explanation_labels[current_phrase_i][current_candidate_j] = 0;
+    }
+    current_candidate_j = explanation_labels[current_phrase_i].length - 1;
+    
+    for (let candidate_group of explanation_candidates[current_phrase_i]) {
+        for (let candidate of candidate_group) {
+            $('*[data-token-id="' + candidate + '"]').css('fill', 'red');
+        }
+    }
+    
+    increment_candidate();
 }
     
 $.getJSON('../tagdata/{{ g.ssid }}', function(data) {
@@ -383,7 +406,10 @@ $.getJSON('../tagdata/{{ g.ssid }}', function(data) {
     explanation_labels = explanation_candidates.map(e => new Array(e.length));
     token_map = {};
     for (let token of bbs.tokens) {
-        token_map[token.token_id] = token 
+        if (!(token.token_id in token_map)) {
+            token_map[token.token_id] = [];
+        }
+        token_map[token.token_id].push(token); 
     }
     bbs.target_bbs = explanation_candidates.map(function(ec) {
         return ec.map(function(candidate_list) {
@@ -393,7 +419,7 @@ $.getJSON('../tagdata/{{ g.ssid }}', function(data) {
     
     redraw_overlay();
     scroll_and_highlight_candidate();
-    update_candidate_counters();
+    update_info_text();
 });
 window.addEventListener("resize", redraw_overlay);
     
@@ -402,15 +428,23 @@ window.addEventListener('keydown', (e) => {
         decrement_candidate();
     } else if (e.key == "ArrowRight") {
         increment_candidate();
-    } else if (e.code == "KeyZ") {
-        set_candidate_true();
-    } else if (e.code == "KeyX") {
-        set_candidate_false();
+    } else if (e.code == "Digit1") {
+        set_candidate_score(1);
+    } else if (e.code == "Digit2") {
+        set_candidate_score(2);
+    } else if (e.code == "Digit3") {
+        set_candidate_score(3);
+    } else if (e.code == "KeyQ") {
+        set_candidate_invalid();
     } else if (e.code == "KeyEnter") {
-        
+        // should submit the data?
     }
-    console.log(e);
-})
+    // console.log(e);
+});
+    
+window.addEventListener('click', e => {
+   console.log(e); 
+});
     
 </script>
 {% endblock %}
