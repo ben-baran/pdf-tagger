@@ -19,6 +19,7 @@
 
 <div class="side-stats">
     <p id="candidate-counter"></p>
+    <p id="phrase-counter"></p>
 </div>
 
 <ul id="slide-out" class="sidenav">
@@ -132,8 +133,8 @@ socket.on("render finished", function (msg) {
 });
 
 var bbs, explanation_candidates;
-var current_candidate = 0;
-var explanation_labels = {};
+var current_phrase_i = 0, current_candidate_j = 0;
+var explanation_labels;
 var token_map;
     
 $.getJSON('../edit_list', function(data) {
@@ -222,13 +223,19 @@ function redraw_overlay () {
         sbbs_page_groups[s_bb.page - 1].push(s_bb);
     }
     
-    for (let t_bb of target_bbs) {
-        let dimension = dimensions[t_bb.page];
-        t_bb.x_adj = t_bb.x * dimension[0];
-        t_bb.y_adj = (1 - t_bb.y - (t_bb.height * 1.1)) * dimension[1];
-        t_bb.width_adj = t_bb.width * dimension[0];
-        t_bb.height_adj = 1.1 * t_bb.height * dimension[1];
-        tbbs_page_groups[t_bb.page - 1].push(t_bb);
+    for (let i = 0; i < target_bbs.length; i++) {
+        for (let j = 0; j < target_bbs[i].length; j++) {
+            for (let t_bb of target_bbs[i][j]) {
+                let dimension = dimensions[t_bb.page];
+                t_bb.x_adj = t_bb.x * dimension[0];
+                t_bb.y_adj = (1 - t_bb.y - (t_bb.height * 1.1)) * dimension[1];
+                t_bb.width_adj = t_bb.width * dimension[0];
+                t_bb.height_adj = 1.1 * t_bb.height * dimension[1];
+                t_bb.target_group = i;
+                t_bb.within_group_index = j;
+                tbbs_page_groups[t_bb.page - 1].push(t_bb);
+            }
+        }
     }
     
     var p_rects = svgs.data(pbbs_page_groups)
@@ -261,22 +268,25 @@ function redraw_overlay () {
                     .selectAll("rect:not(.paragraph-bb):not(.sentence-bb)").data(function(d) {return d;});
     var created_t_rects = t_rects.enter().append("rect");
     created_t_rects.style("opacity", function(d) {
-                if (d.token_id == explanation_candidates[current_candidate]) {
-                    return 0.4;
+                if (d.target_group == current_phrase_i) {
+                    if (d.within_group_index == current_candidate_j) {
+                        return 0.4;
+                    }
+                    return 0.15;
                 }
-                return 0.15;
+                return 0.0;
             })
         .attr("x", function (d) { return d.x_adj; })
         .attr("y", function (d) { return d.y_adj; })
         .attr("width", function (d) { return d.width_adj; })
         .attr("height", function (d) { return d.height_adj; })
         .attr("fill", function(d) {
-                if (!(d.token_id in explanation_labels)) {
-                    return "blue";
-                } else if (explanation_labels[d.token_id]) {
+                if (explanation_labels[d.target_group][d.within_group_index] === false) {
+                    return "red";
+                } else if (explanation_labels[d.target_group][d.within_group_index] === true) {
                     return "green";
                 }
-                return "red";
+                return "blue";
             })
         .classed("target-bb", true)
         .attr("id", function(d) { return "token-" + d.token_id; })
@@ -303,44 +313,66 @@ function redraw_overlay () {
 }
     
 function scroll_and_highlight_candidate () {
-    $('.target-bb').css('opacity', 0.1);
-    let token_elem = $('#token-' + explanation_candidates[current_candidate]);
-    token_elem.css('opacity', 0.4);
-    let offset = token_elem.offset().top - $(window).height() / 2;
-    $('html, body').stop(true, false);
-    $('html, body').animate({scrollTop: offset}, 150);
+    $('.target-bb').css('opacity', 0.0);
+    let candidates = explanation_candidates[current_phrase_i]
+    for (let j = 0; j < candidates.length; j++) {
+        for (let k = 0; k < candidates[j].length; k++) {
+            let token_id = candidates[j][k];
+            let token_elem = $('#token-' + token_id);
+            if (j == current_candidate_j) {
+                token_elem.css('opacity', 0.4);
+                if (k == 0) {
+                    let offset = token_elem.offset().top - $(window).height() / 2;
+                    $('html, body').stop(true, false);
+                    $('html, body').animate({scrollTop: offset}, 150);
+                }
+            } else {
+                token_elem.css('opacity', 0.15);
+            }
+        }
+    }
 }
     
-function update_candidate_counter () {
-    $("#candidate-counter").text("Candidate " + (current_candidate + 1) + "/" + explanation_candidates.length);
+function update_candidate_counters () {
+    $("#phrase-counter").text("Phrase " + (current_phrase_i + 1) + "/" + explanation_candidates.length);
+    $("#candidate-counter").text("Candidate " + (current_candidate_j + 1) + "/" + explanation_candidates[current_phrase_i].length);
 }
     
 function increment_candidate () {
-    if (explanation_candidates.length > current_candidate + 1) {
-        current_candidate++;
-        update_candidate_counter();
-        scroll_and_highlight_candidate();
+    if (explanation_candidates[current_phrase_i].length > current_candidate_j + 1) {
+        current_candidate_j++;
+    } else if (explanation_candidates.length > current_phrase_i + 1) {
+        current_phrase_i++;
+        current_candidate_j = 0;
+    } else {
+        return;
     }
-    
+    update_candidate_counters();
+    scroll_and_highlight_candidate();
 }
     
 function decrement_candidate () {
-    if (current_candidate > 0) {
-        current_candidate--;
-        update_candidate_counter();
-        scroll_and_highlight_candidate();
+    if (current_candidate_j > 0) {
+        current_candidate_j--;
+    } else if (current_phrase_i > 0) {
+        current_phrase_i--;
+        current_candidate_j = explanation_candidates[current_phrase_i].length - 1;
+    } else {
+        return;
     }
+    update_candidate_counters();
+    scroll_and_highlight_candidate();
 }
     
 function set_candidate_true () {
-    explanation_labels[explanation_candidates[current_candidate]] = true;
-    let token_elem = $('#token-' + explanation_candidates[current_candidate]);
+    explanation_labels[current_phrase_i][current_candidate_j] = true;
+    let token_elem = $('#token-' + explanation_candidates[current_phrase_i][current_candidate_j]);
     token_elem.css('fill', 'green');
 }
     
 function set_candidate_false () {
-    explanation_labels[explanation_candidates[current_candidate]] = false;
-    let token_elem = $('#token-' + explanation_candidates[current_candidate]);
+    explanation_labels[current_phrase_i][current_candidate_j] = false;
+    let token_elem = $('#token-' + explanation_candidates[current_phrase_i][current_candidate_j]);
     token_elem.css('fill', 'red');
 }
     
@@ -348,18 +380,20 @@ $.getJSON('../tagdata/{{ g.ssid }}', function(data) {
     console.log(data);
     bbs = data.bbs;
     explanation_candidates = data.explanation_candidates;
-    explanation_labels = new Array(explanation_candidates.length);
+    explanation_labels = explanation_candidates.map(e => new Array(e.length));
     token_map = {};
     for (let token of bbs.tokens) {
         token_map[token.token_id] = token 
     }
-    bbs.target_bbs = explanation_candidates.map(function(ec){
-        return token_map[ec];
+    bbs.target_bbs = explanation_candidates.map(function(ec) {
+        return ec.map(function(candidate_list) {
+            return candidate_list.map(candidate => token_map[candidate]);
+        });
     }); 
     
     redraw_overlay();
     scroll_and_highlight_candidate();
-    update_candidate_counter();
+    update_candidate_counters();
 });
 window.addEventListener("resize", redraw_overlay);
     
@@ -372,7 +406,10 @@ window.addEventListener('keydown', (e) => {
         set_candidate_true();
     } else if (e.code == "KeyX") {
         set_candidate_false();
+    } else if (e.code == "KeyEnter") {
+        
     }
+    console.log(e);
 })
     
 </script>

@@ -186,7 +186,7 @@ def render_and_generate_json(paper_id, email, conn):
         # NOTE(ben): dummy data for now. Later replace this for online learning.
         all_data = {
             'bbs': all_bbs,
-            'explanation_candidates': predictor.random_noun.get_random_noun_list(cursor, token_ids)
+            'explanation_candidates': predictor.random_noun.get_random_noun_list(cursor, paper_id)
         }
         with open(json_filepath, 'w') as json_file:
             json.dump(all_data, json_file)
