@@ -1,5 +1,9 @@
 var socket = io.connect('http://' + document.domain + ':' + location.port);
-    
+var bbs, explanation_candidates;
+var current_phrase_i = 0, current_candidate_j = 0;
+var explanation_labels;
+var token_map;    
+
 function requestRender () {
     let sidebar = document.getElementById('slide-out');
     
@@ -41,11 +45,6 @@ socket.on("render finished", function (msg) {
     list_elem.querySelector(".progress").remove();
     list_elem.querySelector("a").href = msg.ssid;
 });
-
-var bbs, explanation_candidates;
-var current_phrase_i = 0, current_candidate_j = 0;
-var explanation_labels;
-var token_map;
     
 $.getJSON('../edit_list', function(data) {
     let sidebar = document.getElementById('slide-out');
@@ -113,63 +112,55 @@ function redraw_overlay () {
     let pbbs_page_groups = [...Array(number_of_images)].map(e => []);
     let sbbs_page_groups = [...Array(number_of_images)].map(e => []);
     let tbbs_page_groups = [...Array(number_of_images)].map(e => []);
-    for (let p_bb of paragraph_bbs) {
-        let dimension = dimensions[p_bb.page];
-        
+    
+    function create_adjusted_bb(page_groups, bb) {
         // We adjust the paragraph bounding boxes to be a little taller so that
         // there aren't gaps
-        p_bb.x_adj = p_bb.x * dimension[0];
-        p_bb.y_adj = (1 - p_bb.y - (p_bb.height * 1.1)) * dimension[1];
-        p_bb.width_adj = p_bb.width * dimension[0];
-        p_bb.height_adj = 1.1 * p_bb.height * dimension[1];
-        pbbs_page_groups[p_bb.page - 1].push(p_bb);
+        let dimension = dimensions[bb.page];
+        bb.x_adj = bb.x * dimension[0];
+        bb.y_adj = (1 - bb.y - (bb.height * 1.1)) * dimension[1];
+        bb.width_adj = bb.width * dimension[0];
+        bb.height_adj = 1.1 * bb.height * dimension[1];
+        page_groups[bb.page - 1].push(bb);
+    }
+    
+    for (let p_bb of paragraph_bbs) {
+        create_adjusted_bb(pbbs_page_groups, p_bb);
     }
     for (let s_bb of sentence_bbs) {
-        let dimension = dimensions[s_bb.page];
-        s_bb.x_adj = s_bb.x * dimension[0];
-        s_bb.y_adj = (1 - s_bb.y - (s_bb.height * 1.1)) * dimension[1];
-        s_bb.width_adj = s_bb.width * dimension[0];
-        s_bb.height_adj = 1.1 * s_bb.height * dimension[1];
-        sbbs_page_groups[s_bb.page - 1].push(s_bb);
+        create_adjusted_bb(sbbs_page_groups, s_bb);
     }
     
     for (let i = 0; i < target_bbs.length; i++) {
         for (let j = 0; j < target_bbs[i].length; j++) {
             for (let target of target_bbs[i][j]) {
                 for (let t_bb of target) {
-                    let dimension = dimensions[t_bb.page];
-                    t_bb.x_adj = t_bb.x * dimension[0];
-                    t_bb.y_adj = (1 - t_bb.y - (t_bb.height * 1.1)) * dimension[1];
-                    t_bb.width_adj = t_bb.width * dimension[0];
-                    t_bb.height_adj = 1.1 * t_bb.height * dimension[1];
                     t_bb.target_group = i;
                     t_bb.within_group_index = j;
-                    tbbs_page_groups[t_bb.page - 1].push(t_bb);
+                    create_adjusted_bb(tbbs_page_groups, t_bb);
                 }
             }
         }
     }
     
+    function style_rects(rects) {
+        let created_rects = rects.enter().append("rect");
+        
+        return created_rects.style("opacity", 0.0)
+            .attr("x", function (d) { return d.x_adj; })
+            .attr("y", function (d) { return d.y_adj; })
+            .attr("width", function (d) { return d.width_adj; })
+            .attr("height", function (d) { return d.height_adj; })
+            ;
+    }
+    
     var p_rects = svgs.data(pbbs_page_groups)
                     .selectAll("rect").data(function(d) {return d;});
-    var created_p_rects = p_rects.enter().append("rect");
-    created_p_rects.style("opacity", 0.0)
-        .attr("x", function (d) { return d.x_adj; })
-        .attr("y", function (d) { return d.y_adj; })
-        .attr("width", function (d) { return d.width_adj; })
-        .attr("height", function (d) { return d.height_adj; })
-        .classed("paragraph-bb", true);
-        ;
-    
+    p_rects = style_rects(p_rects).classed("paragraph-bb", true);
     
     var s_rects = svgs.data(sbbs_page_groups)
                     .selectAll("rect:not(.paragraph-bb)").data(function(d) {return d;});
-    var created_s_rects = s_rects.enter().append("rect");
-    created_s_rects.style("opacity", 0.0)
-        .attr("x", function (d) { return d.x_adj; })
-        .attr("y", function (d) { return d.y_adj; })
-        .attr("width", function (d) { return d.width_adj; })
-        .attr("height", function (d) { return d.height_adj; })
+    s_rects = style_rects(s_rects)
         .attr("fill", "green")
         .on("mouseover", sentenceMouseOver)
         .on("mouseout", sentenceMouseOut)
@@ -178,8 +169,8 @@ function redraw_overlay () {
     
     var t_rects = svgs.data(tbbs_page_groups)
                     .selectAll("rect:not(.paragraph-bb):not(.sentence-bb)").data(function(d) {return d;});
-    var created_t_rects = t_rects.enter().append("rect");
-    created_t_rects.style("opacity", function(d) {
+    t_rects = style_rects(t_rects)
+        .style("opacity", function(d) {
                 if (d.target_group == current_phrase_i) {
                     if (d.within_group_index == current_candidate_j) {
                         return 0.4;
@@ -188,10 +179,6 @@ function redraw_overlay () {
                 }
                 return 0.0;
             })
-        .attr("x", function (d) { return d.x_adj; })
-        .attr("y", function (d) { return d.y_adj; })
-        .attr("width", function (d) { return d.width_adj; })
-        .attr("height", function (d) { return d.height_adj; })
         .attr("fill", function(d) {
                 if (explanation_labels[d.target_group][d.within_group_index] == 0) {
                     return "red";
@@ -205,21 +192,16 @@ function redraw_overlay () {
         ;
     
     function sentenceMouseOver (d, i) {
-        created_s_rects.filter(function(d_inner) { return d_inner.sentence_id == d.sentence_id; })
+        s_rects.filter(function(d_inner) { return d_inner.sentence_id == d.sentence_id; })
             .transition().duration(.3).style("opacity", 0.2);
-        /*console.log(created_p_rects.filter(function(d_inner) {
-            console.log(d_inner);
-            console.log(d.parent_id + " =? " + d_inner.paragraph_id);
-            return d_inner.paragraph_id == d.parent_id;
-        }));*/
-        created_p_rects.filter(function(d_inner) { return d_inner.paragraph_id == d.parent_id; })
+        p_rects.filter(function(d_inner) { return d_inner.paragraph_id == d.parent_id; })
             .transition().duration(.3).style("opacity", 0.12);
     }
 
     function sentenceMouseOut (d, i) {
-        created_s_rects.filter(function(d_inner) { return d_inner.sentence_id == d.sentence_id; })
+        s_rects.filter(function(d_inner) { return d_inner.sentence_id == d.sentence_id; })
             .transition().style("opacity", 0.0);
-        created_p_rects.filter(function(d_inner) { return d_inner.paragraph_id == d.parent_id; })
+        p_rects.filter(function(d_inner) { return d_inner.paragraph_id == d.parent_id; })
             .transition().style("opacity", 0.0);
     }
 }
