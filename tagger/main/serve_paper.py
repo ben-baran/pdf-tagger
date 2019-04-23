@@ -178,6 +178,7 @@ def render_and_generate_json(paper_id, email, conn):
             })
             
         all_bbs = {
+            'page_sizes': pages,
             'paragraphs': paragraphs,
             'sentences': sentences,
             'tokens': tokens
