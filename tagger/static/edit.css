@@ -9,14 +9,27 @@
     padding-right: 5%;
 }
 
-.side-stats {
+#side-stats {
     position: fixed;
-    z-index: 2;
-    right: 0%;
     bottom: 0%;
-    padding: 8px;
-    padding-left: 5%;
-    padding-right: 5%;
+    height: 100%;
+}
+
+.all-container {
+    display: none;
+}
+
+#side-stats * {
+    color: white;
+}
+
+#side-stats tr {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+#image-container {
+    z-index: -1;
+    position: relative;
 }
 
 .document-container {

@@ -1,27 +1,9 @@
 {% extends 'base.html' %}
 
-{% block header %}
-    <a href="" class="brand-logo truncate">Explanation Labeling</a>
-    <ul class="right hide-on-med-and-down">
-        <li><a class="waves-effect waves-light tagger-sidenav btn" data-target="slide-out">Other Papers</a></li>
-        <li><a href="/logout" class="waves-effect waves-light btn">Log Out</a></li>
-    </ul>
-{% endblock %}
+{% block header %}{% endblock %}
 
 
 {% block content %}
-<!--<div class="button-box red lighten-2">
-    <a class="waves-effect waves-light btn">Mark as done (ENTER)</a>
-    <a class="waves-effect waves-light btn" id="is-explained-button">Is being explained (←)</a>
-    <a class="waves-effect waves-light btn" id="is-not-explained-button">Isn't being explained (→)</a>
-    <a class="waves-effect waves-light btn" id="undo-label-button">Undo (Back)</a>
-</div>-->
-
-<div class="side-stats">
-    <p id="candidate-counter"></p>
-    <p id="phrase-counter"></p>
-</div>
-
 <ul id="slide-out" class="sidenav">
     <li><div class="user-view">
         <div class="cyan background">
@@ -35,22 +17,47 @@
 </div>
 </ul>
 
-<div class="container" id="image-container">
-    <ul class="collapsible">
-    <li>
-      <div class="collapsible-header"><i class="material-icons">question_answer</i>Instructions</div>
-      <div class="collapsible-body"><span>Lorem ipsum dolor sit amet.</span></div>
-    </li>
-    </li>
-  </ul>
+<!-- Loads the stylesheet before the content so we can display loading sign -->
+<link rel="stylesheet" href="{{ url_for('static', filename = 'edit.css') }}">
+
+<div class="row all-container">
+    <div id="side-stats" class="grey darken-3 col s3 z-depth-2">
+        <h4> Explanation Labeling </h4>
+        <table>
+        <thead>
+          <tr>
+              <th></th>
+              <th>Value</th>
+              <th>Total</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>Candidate</td>
+            <td id="current-candidate-count">N/A</td>
+            <td id="total-candidate-count"></td>
+          </tr>
+          <tr>
+            <td>Phrase</td>
+            <td id="current-phrase-count">N/A</td>
+            <td id="total-phrase-count"></td>
+          </tr>
+          <tr>
+            <td>Labeled</td>
+            <td>3</td>
+            <td>18</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="col s9 offset-s3" id="image-container"></div>
 </div>
 
 {% endblock %}
 
 {% block end %}
-
-
-<link rel="stylesheet" href="{{ url_for('static', filename = 'edit.css') }}">
 
 <script>
     user_email = '{{ g.email }}';

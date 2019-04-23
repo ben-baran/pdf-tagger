@@ -1,8 +1,34 @@
 var socket = io.connect('http://' + document.domain + ':' + location.port);
 var bbs, explanation_candidates;
-var current_phrase_i = 0, current_candidate_j = 0;
+
+// Current candidate starts at -1 so that we don't immediately scroll
+var current_phrase_i = 0, current_candidate_j = -1;
 var explanation_labels;
-var token_map;    
+var token_map;
+
+
+// Loading images and creating SVG elements for each of them.
+{
+    let img_container = document.getElementById("image-container");
+    for (let img_i = 1; img_i <= number_of_images; img_i++) {
+        var div_block = document.createElement("div");
+        div_block.className = "document-container";
+
+        var img_block = document.createElement("img");
+        img_block.src = "../tagimgs/" + ssid + "/" + img_i;
+        img_block.className = "responsive-img";
+        img_block.dataset.taggingImagePage = img_i;
+
+        var internal_div = document.createElement("div");
+        var svg_block = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        internal_div.className = "document-overlay";
+        internal_div.appendChild(svg_block);
+
+        div_block.appendChild(img_block);
+        div_block.appendChild(internal_div);
+        img_container.appendChild(div_block);
+    }
+}
 
 function requestRender () {
     let sidebar = document.getElementById('slide-out');
@@ -67,28 +93,6 @@ $('.tagger-sidenav').click(function() {
     $('.sidenav').sidenav('open');
 });
     
-var img_container = document.getElementById("image-container");
-var img_i;
-for (img_i = 1; img_i <= number_of_images; img_i++) {
-    var div_block = document.createElement("div");
-    div_block.className = "document-container";
-    
-    var img_block = document.createElement("img");
-    img_block.src = "../tagimgs/" + ssid + "/" + img_i;
-    img_block.className = "responsive-img";
-    img_block.dataset.taggingImagePage = img_i;
-    
-    var internal_div = document.createElement("div");
-    var svg_block = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    internal_div.className = "document-overlay";
-    internal_div.appendChild(svg_block);
- 
-    
-    div_block.appendChild(img_block);
-    div_block.appendChild(internal_div);
-    img_container.appendChild(div_block);
-}
-
 function redraw_overlay () {
     $('.paragraph-bb').remove();
     $('.sentence-bb').remove();
@@ -208,7 +212,7 @@ function redraw_overlay () {
     
 function scroll_and_highlight_candidate () {
     $('.target-bb').css('opacity', 0.0);
-    let candidates = explanation_candidates[current_phrase_i]
+    let candidates = explanation_candidates[current_phrase_i];
     for (let j = 0; j < candidates.length; j++) {
         for (let k = 0; k < candidates[j].length; k++) {
             let token_id = candidates[j][k];
@@ -228,8 +232,12 @@ function scroll_and_highlight_candidate () {
 }
     
 function update_info_text () {
-    $("#phrase-counter").text("Phrase " + (current_phrase_i + 1) + "/" + explanation_candidates.length);
-    $("#candidate-counter").text("Candidate " + (current_candidate_j + 1) + "/" + explanation_candidates[current_phrase_i].length);
+    $("#total-candidate-count").text(explanation_candidates[current_phrase_i].length);
+    $("#total-phrase-count").text(explanation_candidates.length);
+    if (current_candidate_j != -1) {
+        $("#current-candidate-count").text(current_candidate_j + 1);
+        $("#current-phrase-count").text(current_phrase_i + 1);
+    }
 }
     
 function increment_candidate () {
@@ -259,6 +267,10 @@ function decrement_candidate () {
 }
     
 function set_candidate_score (score) {
+    if (current_candidate_j == -1) {
+        return; // labeling hasn't been initialized
+    }
+    
     explanation_labels[current_phrase_i][current_candidate_j] = score;
     for (let candidate of explanation_candidates[current_phrase_i][current_candidate_j]) {
         $('*[data-token-id="' + candidate + '"]').css('fill', 'green');
@@ -276,6 +288,10 @@ function set_candidate_score (score) {
 }
     
 function set_candidate_invalid () {
+    if (current_candidate_j == -1) {
+        return; // labeling hasn't been initializde
+    }
+    
     for (let j = 0; j < explanation_labels[current_phrase_i].length; j++) {
         explanation_labels[current_phrase_i][j] = 0;
     }
@@ -291,26 +307,30 @@ function set_candidate_invalid () {
 }
     
 $.getJSON('../tagdata/' + ssid, function(data) {
-    bbs = data.bbs;
-    explanation_candidates = data.explanation_candidates;
-    explanation_labels = explanation_candidates.map(e => new Array(e.length));
-    token_map = {};
-    for (let token of bbs.tokens) {
-        if (!(token.token_id in token_map)) {
-            token_map[token.token_id] = [];
+    $(window).on("load", function () {
+        bbs = data.bbs;
+        explanation_candidates = data.explanation_candidates;
+        explanation_labels = explanation_candidates.map(e => new Array(e.length));
+        token_map = {};
+        for (let token of bbs.tokens) {
+            if (!(token.token_id in token_map)) {
+                token_map[token.token_id] = [];
+            }
+            token_map[token.token_id].push(token); 
         }
-        token_map[token.token_id].push(token); 
-    }
-    bbs.target_bbs = explanation_candidates.map(function(ec) {
-        return ec.map(function(candidate_list) {
-            return candidate_list.map(candidate => token_map[candidate]);
-        });
-    }); 
-    
-    redraw_overlay();
-    scroll_and_highlight_candidate();
-    update_info_text();
+        bbs.target_bbs = explanation_candidates.map(function(ec) {
+            return ec.map(function(candidate_list) {
+                return candidate_list.map(candidate => token_map[candidate]);
+            });
+        }); 
+
+        $('.all-container').fadeIn();
+        redraw_overlay();
+        scroll_and_highlight_candidate();
+        update_info_text();
+    });
 });
+
 window.addEventListener("resize", redraw_overlay);
     
 window.addEventListener('keydown', (e) => {
@@ -331,4 +351,3 @@ window.addEventListener('keydown', (e) => {
     }
     // console.log(e);
 });
-    
