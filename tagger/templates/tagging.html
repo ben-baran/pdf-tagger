@@ -136,6 +136,7 @@ var bbs, explanation_candidates;
 var current_phrase_i = 0, current_candidate_j = 0;
 var explanation_labels;
 var token_map;
+var last_selected_sentence;
     
 $.getJSON('../edit_list', function(data) {
     let sidebar = document.getElementById('slide-out');
@@ -304,7 +305,7 @@ function redraw_overlay () {
         }));*/
         created_p_rects.filter(function(d_inner) { return d_inner.paragraph_id == d.parent_id; })
             .transition().duration(.3).style("opacity", 0.12);
-        // last_selected_sentence = d.sentence_id;
+        last_selected_sentence = d.sentence_id;
     }
 
     function sentenceMouseOut (d, i) {
@@ -400,7 +401,6 @@ function set_candidate_invalid () {
 }
     
 $.getJSON('../tagdata/{{ g.ssid }}', function(data) {
-    console.log(data);
     bbs = data.bbs;
     explanation_candidates = data.explanation_candidates;
     explanation_labels = explanation_candidates.map(e => new Array(e.length));
@@ -442,8 +442,17 @@ window.addEventListener('keydown', (e) => {
     // console.log(e);
 });
     
+// Debug output for RJ and Luming
 window.addEventListener('click', e => {
-   console.log(e); 
+   for (let bb of bbs.sentences) {
+       if (bb.sentence_id == last_selected_sentence) {
+           console.log('n: ', bb.n);
+           console.log('x: ' + bb.x * bbs.page_sizes[bb.page][0]);
+           console.log('y: ' + bb.y * bbs.page_sizes[bb.page][1]);
+           console.log('width: ' + bb.width * bbs.page_sizes[bb.page][0]);
+           console.log('height: ' + bb.height * bbs.page_sizes[bb.page][1]);
+       }
+   }
 });
     
 </script>
