@@ -201,7 +201,6 @@ function redraw_overlay () {
         ;
     
     function sentenceMouseOver (d, i) {
-        console.log("sentence moused over");
         s_rects.filter(function(d_inner) { return d_inner.sentence_id == d.sentence_id; })
             .transition().duration(.3).style("opacity", 0.2);
         p_rects.filter(function(d_inner) { return d_inner.paragraph_id == d.parent_id; })
@@ -331,6 +330,7 @@ $.getJSON('../tagdata/' + ssid, function(data) {
         }); 
 
         $('.all-container').fadeIn();
+        $('.entire-page-preloader').fadeOut();
         
         loaded_tag_data = true;
         

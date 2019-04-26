@@ -19,6 +19,19 @@
 
 <!-- Loads the stylesheet before the content so we can display loading sign -->
 <link rel="stylesheet" href="{{ url_for('static', filename = 'edit.css') }}">
+<div id="entire-page-preloader" class="preloader-wrapper big active">
+    <div class="spinner-layer spinner-blue-only">
+        <div class="circle-clipper left">
+            <div class="circle"></div>
+        </div>
+        <div class="gap-patch">
+            <div class="circle"></div>
+        </div>
+        <div class="circle-clipper right">
+            <div class="circle"></div>
+        </div>
+    </div>
+</div>
 
 <div class="row all-container">
     <div id="side-stats" class="grey darken-3 col s3 z-depth-2">
@@ -51,7 +64,8 @@
             </tbody>
         </table>
         
-        <a class="waves-effect waves-light btn">button</a>
+        <a class="sidebar-button waves-effect waves-light btn" href="../logout">Mark as Done</a>
+        <a class="sidebar-button waves-effect waves-light btn" href="../logout">Log out</a>
     </div>
     
     <div class="col s9 offset-s3" id="image-container"></div>
