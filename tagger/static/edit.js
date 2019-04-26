@@ -1,5 +1,6 @@
 var socket = io.connect('http://' + document.domain + ':' + location.port);
 var bbs, explanation_candidates;
+var loaded_tag_data = false;
 
 // Current candidate starts at -1 so that we don't immediately scroll
 var current_phrase_i = 0, current_candidate_j = -1;
@@ -94,6 +95,10 @@ $('.tagger-sidenav').click(function() {
 });
     
 function redraw_overlay () {
+    if (!loaded_tag_data) {
+        return;
+    }
+    
     $('.paragraph-bb').remove();
     $('.sentence-bb').remove();
     $('.target-bb').remove();
@@ -159,7 +164,7 @@ function redraw_overlay () {
     }
     
     var p_rects = svgs.data(pbbs_page_groups)
-                    .selectAll("rect").data(function(d) {return d;});
+                      .selectAll("rect").data(function(d) {return d;});
     p_rects = style_rects(p_rects).classed("paragraph-bb", true);
     
     var s_rects = svgs.data(sbbs_page_groups)
@@ -196,6 +201,7 @@ function redraw_overlay () {
         ;
     
     function sentenceMouseOver (d, i) {
+        console.log("sentence moused over");
         s_rects.filter(function(d_inner) { return d_inner.sentence_id == d.sentence_id; })
             .transition().duration(.3).style("opacity", 0.2);
         p_rects.filter(function(d_inner) { return d_inner.paragraph_id == d.parent_id; })
@@ -325,6 +331,9 @@ $.getJSON('../tagdata/' + ssid, function(data) {
         }); 
 
         $('.all-container').fadeIn();
+        
+        loaded_tag_data = true;
+        
         redraw_overlay();
         scroll_and_highlight_candidate();
         update_info_text();
