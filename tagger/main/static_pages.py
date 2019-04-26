@@ -57,7 +57,7 @@ def tag_paper(paper_id):
     # render pages if they don't already exist in the ./renders folder
     g.num_images = serve_paper.render_and_generate_json(paper_id, g.email, get_connection())
     g.ssid = paper_id
-    return render_template('tagging.html')
+    return render_template('tagging.html', rendered_papers = serve_paper.get_edited_list(g.email, get_connection()))
     
     
 @main.route('/tagimgs/<string:ssid>/<int:n>')

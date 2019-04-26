@@ -220,4 +220,4 @@ def get_edited_list(email, conn):
         } for ssid, in cursor]
     cursor.close()
     inner_cursor.close()
-    return {'papers': papers}
+    return papers

@@ -4,19 +4,6 @@
 
 
 {% block content %}
-<ul id="slide-out" class="sidenav">
-    <li><div class="user-view">
-        <div class="cyan background">
-            <img src="https://upload.wikimedia.org/wikipedia/en/d/da/Hearst_Mining_Interior.JPG">
-        </div>
-        <a><span class="white-text name">{{ g.fullname }}</span></a>
-        <a><span class="white-text email">{{ g.email }}</span></a>
-    </div></li>
-    <li><a class="waves-effect" onclick="requestRender()"><i class="material-icons">add_circle</i>Render Additional Paper</a></li>
-    <li><div class="divider"></div></li>
-</div>
-</ul>
-
 <!-- Loads the stylesheet before the content so we can display loading sign -->
 <link rel="stylesheet" href="{{ url_for('static', filename = 'edit.css') }}">
 <div id="entire-page-preloader" class="preloader-wrapper big active">
@@ -65,7 +52,18 @@
         </table>
         
         <a class="sidebar-button waves-effect waves-light btn" href="../logout">Mark as Done</a>
+        <a class="sidebar-button waves-effect waves-light btn" href="../logout">Show controls</a>
         <a class="sidebar-button waves-effect waves-light btn" href="../logout">Log out</a>
+        
+        <div class="paper-list collection">
+        {% for paper in rendered_papers %}
+            <a href="{{ paper['ssid'] }}" class="collection-item"> {{ paper['title'] }} </a>
+            <a href="{{ paper['ssid'] }}" class="collection-item"> {{ paper['title'] }} </a>
+            <a href="{{ paper['ssid'] }}" class="collection-item"> {{ paper['title'] }} </a>
+            <a href="{{ paper['ssid'] }}" class="collection-item"> {{ paper['title'] }} </a>
+            <a href="{{ paper['ssid'] }}" class="collection-item"> {{ paper['title'] }} </a>
+        {% endfor %}
+        </div>
     </div>
     
     <div class="col s9 offset-s3" id="image-container"></div>

@@ -31,6 +31,7 @@ var token_map;
     }
 }
 
+/* 
 function requestRender () {
     let sidebar = document.getElementById('slide-out');
     
@@ -72,28 +73,8 @@ socket.on("render finished", function (msg) {
     list_elem.querySelector(".progress").remove();
     list_elem.querySelector("a").href = msg.ssid;
 });
-    
-$.getJSON('../edit_list', function(data) {
-    let sidebar = document.getElementById('slide-out');
-    for (let group of data.papers) {
-        let list_elem = document.createElement("li");
-        let a_elem = document.createElement("a");
-        a_elem.className = "truncate";
-        a_elem.href = group.ssid;
-        let font_elem = document.createElement("font");
-        font_elem.size = -1;
-        font_elem.textContent = group.title;
+*/
 
-        a_elem.appendChild(font_elem);
-        list_elem.appendChild(a_elem);
-        sidebar.appendChild(list_elem);
-    }
-});
-    
-$('.tagger-sidenav').click(function() {
-    $('.sidenav').sidenav('open');
-});
-    
 function redraw_overlay () {
     if (!loaded_tag_data) {
         return;

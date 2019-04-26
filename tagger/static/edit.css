@@ -6,10 +6,19 @@
     position: fixed;
     bottom: 0%;
     height: 100%;
+    overflow: auto;
 }
 
-#side-stats * {
+#side-stats *{
     color: white;
+}
+
+#side-stats .collection-item {
+    color: black;
+}
+
+.paper-list {
+    margin-top: 20px;
 }
 
 #side-stats tr {
