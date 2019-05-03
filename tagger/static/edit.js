@@ -7,10 +7,6 @@ var current_phrase_i = 0, current_candidate_j = -1;
 var explanation_labels;
 var token_map;
 
-// D3.js elements
-var paragraph_bbs, sentence_bbs, target_bbs;
-
-
 // Loading images and creating SVG elements for each of them.
 {
     let img_container = document.getElementById("image-container");
@@ -149,11 +145,11 @@ function redraw_overlay () {
             ;
     }
     
-    p_rects = svgs.data(pbbs_page_groups)
+    let p_rects = svgs.data(pbbs_page_groups)
                       .selectAll("rect").data(function(d) {return d;});
     p_rects = style_rects(p_rects).classed("paragraph-bb", true);
     
-    s_rects = svgs.data(sbbs_page_groups)
+    let s_rects = svgs.data(sbbs_page_groups)
                     .selectAll("rect:not(.paragraph-bb)").data(function(d) {return d;});
     s_rects = style_rects(s_rects)
         .attr("fill", "green")
@@ -162,7 +158,7 @@ function redraw_overlay () {
         .classed("sentence-bb", true)
         ;
     
-    t_rects = svgs.data(tbbs_page_groups)
+    let t_rects = svgs.data(tbbs_page_groups)
                     .selectAll("rect:not(.paragraph-bb):not(.sentence-bb)").data(function(d) {return d;});
     t_rects = style_rects(t_rects)
         .style("opacity", function(d) {

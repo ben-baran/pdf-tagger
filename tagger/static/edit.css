@@ -55,3 +55,10 @@
     width: 100%;
     margin-top: 20px;
 }
+
+#controls-table td:first-child, #controls-table th:first-child {
+    text-align: center;
+    padding-left: 15px;
+    padding-right: 15px;
+    font-weight: bold;
+}

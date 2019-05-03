@@ -4,6 +4,51 @@
 
 
 {% block content %}
+
+<div id="controls-modal" class="modal">
+    <div class="modal-content">
+        <h4>Controls</h4>
+        <table id="controls-table">
+            <thead>
+                <tr>
+                    <th>Key</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                <tr>
+                    <td><i class="material-icons">keyboard_arrow_right</i></td>
+                    <td>See next candidate</td>
+                </tr>
+                <tr>
+                    <td><i class="material-icons">keyboard_arrow_left</i></td>
+                    <td>See previous candidate</td>
+                </tr>
+                <tr>
+                    <td>1</td>
+                    <td>Label candidate as "not an explanation"</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td>Label candidate as "somewhat explanatory"</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td>Label candidate as "a good explanation"</td>
+                </tr>
+                <tr>
+                    <td>Q</td>
+                    <td>Label all candidates for current phrase as "not needing to be explained"</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="modal-footer">
+        <a href="#!" class="modal-close waves-effect waves-green btn-flat">OK</a>
+    </div>
+</div>
+
 <!-- Loads the stylesheet before the content so we can display loading sign -->
 <link rel="stylesheet" href="{{ url_for('static', filename = 'edit.css') }}">
 <div id="entire-page-preloader" class="preloader-wrapper big active">
@@ -52,7 +97,7 @@
         </table>
         
         <a class="sidebar-button waves-effect waves-light btn" href="../logout">Mark as Done</a>
-        <a class="sidebar-button waves-effect waves-light btn" href="../logout">Show controls</a>
+        <a class="sidebar-button waves-effect waves-light modal-trigger btn" href="#controls-modal">Show controls</a>
         <a class="sidebar-button waves-effect waves-light btn" href="../logout">Log out</a>
         
         <div class="paper-list collection">
