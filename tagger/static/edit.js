@@ -7,6 +7,9 @@ var current_phrase_i = 0, current_candidate_j = -1;
 var explanation_labels;
 var token_map;
 
+// D3.js elements
+var paragraph_bbs, sentence_bbs, target_bbs;
+
 
 // Loading images and creating SVG elements for each of them.
 {
@@ -96,6 +99,7 @@ function redraw_overlay () {
         this.setAttribute("height", height);
         dimensions[i + 1] = [width, height];
     });
+
     let paragraph_bbs = bbs.paragraphs;
     let sentence_bbs = bbs.sentences;
     let target_bbs = bbs.target_bbs;
@@ -103,9 +107,10 @@ function redraw_overlay () {
     let sbbs_page_groups = [...Array(number_of_images)].map(e => []);
     let tbbs_page_groups = [...Array(number_of_images)].map(e => []);
     
-    function create_adjusted_bb(page_groups, bb) {
+    function create_adjusted_bb(page_groups, bb_original) {
         // We adjust the paragraph bounding boxes to be a little taller so that
         // there aren't gaps
+        let bb = Object.assign({}, bb_original);
         let dimension = dimensions[bb.page];
         bb.x_adj = bb.x * dimension[0];
         bb.y_adj = (1 - bb.y - (bb.height * 1.1)) * dimension[1];
@@ -144,11 +149,11 @@ function redraw_overlay () {
             ;
     }
     
-    var p_rects = svgs.data(pbbs_page_groups)
+    p_rects = svgs.data(pbbs_page_groups)
                       .selectAll("rect").data(function(d) {return d;});
     p_rects = style_rects(p_rects).classed("paragraph-bb", true);
     
-    var s_rects = svgs.data(sbbs_page_groups)
+    s_rects = svgs.data(sbbs_page_groups)
                     .selectAll("rect:not(.paragraph-bb)").data(function(d) {return d;});
     s_rects = style_rects(s_rects)
         .attr("fill", "green")
@@ -157,7 +162,7 @@ function redraw_overlay () {
         .classed("sentence-bb", true)
         ;
     
-    var t_rects = svgs.data(tbbs_page_groups)
+    t_rects = svgs.data(tbbs_page_groups)
                     .selectAll("rect:not(.paragraph-bb):not(.sentence-bb)").data(function(d) {return d;});
     t_rects = style_rects(t_rects)
         .style("opacity", function(d) {
@@ -165,7 +170,9 @@ function redraw_overlay () {
                     if (d.within_group_index == current_candidate_j) {
                         return 0.4;
                     }
-                    return 0.15;
+                    if (current_candidate_j != -1) {
+                        return 0.15;
+                    }
                 }
                 return 0.0;
             })
@@ -179,6 +186,7 @@ function redraw_overlay () {
             })
         .classed("target-bb", true)
         .attr("data-token-id", function(d) { return d.token_id; })
+        .attr("data-phrase-i", function(d) { return d.target_group; })
         ;
     
     function sentenceMouseOver (d, i) {
@@ -197,12 +205,16 @@ function redraw_overlay () {
 }
     
 function scroll_and_highlight_candidate () {
+    if (current_candidate_j == -1) {
+        return;
+    }
+    
     $('.target-bb').css('opacity', 0.0);
     let candidates = explanation_candidates[current_phrase_i];
     for (let j = 0; j < candidates.length; j++) {
         for (let k = 0; k < candidates[j].length; k++) {
             let token_id = candidates[j][k];
-            let token_elems = $('*[data-token-id="' + token_id + '"]');
+            let token_elems = $(`[data-token-id="${token_id}"][data-phrase-i=${current_phrase_i}]`);
             if (j == current_candidate_j) {
                 token_elems.css('opacity', 0.4);
                 if (k == 0) {
@@ -216,7 +228,7 @@ function scroll_and_highlight_candidate () {
         }
     }
 }
-    
+
 function update_info_text () {
     $("#total-candidate-count").text(explanation_candidates[current_phrase_i].length);
     $("#total-phrase-count").text(explanation_candidates.length);
@@ -259,7 +271,7 @@ function set_candidate_score (score) {
     
     explanation_labels[current_phrase_i][current_candidate_j] = score;
     for (let candidate of explanation_candidates[current_phrase_i][current_candidate_j]) {
-        $('*[data-token-id="' + candidate + '"]').css('fill', 'green');
+        $(`[data-token-id="${candidate}"][data-phrase-i="${current_phrase_i}"]`).attr("fill", "green");
     }
     
     // Need to make any "invalid" labels valid again
@@ -267,7 +279,7 @@ function set_candidate_score (score) {
         if (explanation_labels[current_phrase_i][j] == 0) {
             explanation_labels[current_phrase_i][j] = null;
             for (let candidate of explanation_candidates[current_phrase_i][j]) {
-                $('*[data-token-id="' + candidate + '"]').css('fill', 'blue');
+                $(`[data-token-id="${candidate}"][data-phrase-i="${current_phrase_i}"]`).attr("fill", "blue");
             }
         }
     }
@@ -275,7 +287,7 @@ function set_candidate_score (score) {
     
 function set_candidate_invalid () {
     if (current_candidate_j == -1) {
-        return; // labeling hasn't been initializde
+        return; // labeling hasn't been initialized
     }
     
     for (let j = 0; j < explanation_labels[current_phrase_i].length; j++) {
@@ -285,7 +297,7 @@ function set_candidate_invalid () {
     
     for (let candidate_group of explanation_candidates[current_phrase_i]) {
         for (let candidate of candidate_group) {
-            $('*[data-token-id="' + candidate + '"]').css('fill', 'red');
+            $(`[data-token-id="${candidate}"][data-phrase-i="${current_phrase_i}"]`).attr("fill", "red");
         }
     }
     
@@ -315,29 +327,29 @@ $.getJSON('../tagdata/' + ssid, function(data) {
         
         loaded_tag_data = true;
         
+        window.addEventListener("resize", redraw_overlay);
+    
+        window.addEventListener('keydown', (e) => {
+            if (e.key == "ArrowLeft") {
+                decrement_candidate();
+            } else if (e.key == "ArrowRight") {
+                increment_candidate();
+            } else if (e.code == "Digit1") {
+                set_candidate_score(1);
+            } else if (e.code == "Digit2") {
+                set_candidate_score(2);
+            } else if (e.code == "Digit3") {
+                set_candidate_score(3);
+            } else if (e.code == "KeyQ") {
+                set_candidate_invalid();
+            } else if (e.code == "KeyEnter") {
+                // should submit the data?
+            }
+            // console.log(e);
+        });
+        
         redraw_overlay();
         scroll_and_highlight_candidate();
         update_info_text();
     });
-});
-
-window.addEventListener("resize", redraw_overlay);
-    
-window.addEventListener('keydown', (e) => {
-    if (e.key == "ArrowLeft") {
-        decrement_candidate();
-    } else if (e.key == "ArrowRight") {
-        increment_candidate();
-    } else if (e.code == "Digit1") {
-        set_candidate_score(1);
-    } else if (e.code == "Digit2") {
-        set_candidate_score(2);
-    } else if (e.code == "Digit3") {
-        set_candidate_score(3);
-    } else if (e.code == "KeyQ") {
-        set_candidate_invalid();
-    } else if (e.code == "KeyEnter") {
-        // should submit the data?
-    }
-    // console.log(e);
 });
